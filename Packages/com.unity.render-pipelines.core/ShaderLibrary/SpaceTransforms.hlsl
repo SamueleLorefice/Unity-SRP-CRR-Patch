@@ -5,24 +5,18 @@
 #pragma warning (disable : 3205) // conversion of larger type to smaller
 #endif
 
-#ifdef CAMERA_RELATIVE_RENDERING
 // From the Related RenderGraph Feature:
 float3 _CameraOriginWS; // Camera origin in world space (for camera relative rendering)
-#endif
+float _CameraRelativeEnabled;
 
 // Caution: For HDRP, adding a function in this file requires adding the appropriate #define in PickingSpaceTransforms.hlsl
 
 // Return the PreTranslated ObjectToWorld Matrix (i.e matrix with _WorldSpaceCameraPos apply to it if we use camera relative rendering)
 float4x4 GetObjectToWorldMatrix()
 {
-#ifdef CAMERA_RELATIVE_RENDERING
     float4x4 m = UNITY_MATRIX_M;
-    // Subtract the camera origin from the translation column of the world matrix
-    m._m03_m13_m23 -= _CameraOriginWS;
+    m._m03_m13_m23 -= _CameraOriginWS * _CameraRelativeEnabled;
     return m;
-#else
-    return UNITY_MATRIX_M;
-#endif
 }
 
 float4x4 GetWorldToObjectMatrix()
@@ -42,14 +36,9 @@ float4x4 GetPrevWorldToObjectMatrix()
 
 float4x4 GetWorldToViewMatrix()
 {
-#ifdef CAMERA_RELATIVE_RENDERING
     float4x4 v = UNITY_MATRIX_V;
-    // Zero out the translation column; keep only rotation/scale
-    v._m03_m13_m23 = float3(0.0, 0.0, 0.0);
+    v._m03_m13_m23 = lerp(v._m03_m13_m23, float3(0,0,0), _CameraRelativeEnabled);
     return v;
-#else
-    return UNITY_MATRIX_V;
-#endif
 }
 
 float4x4 GetViewToWorldMatrix()
@@ -132,22 +121,19 @@ float4 TransformWViewToHClip(float3 positionVS)
 // Transforms position from world space to homogenous space
 float4 TransformWorldToHClip(float3 positionWS)
 {
-#ifdef CAMERA_RELATIVE_RENDERING
-    return TransformWViewToHClip(TransformWorldToView(positionWS));
-#else
-    return mul(GetWorldToHClipMatrix(), float4(positionWS, 1.0));
-#endif
+    if (_CameraRelativeEnabled)
+        return TransformWViewToHClip(TransformWorldToView(positionWS));
+    else
+        return mul(GetWorldToHClipMatrix(), float4(positionWS, 1.0));
 }
 
 // Transforms position from object space to homogenous space
 float4 TransformObjectToHClip(float3 positionOS)
 {
-#ifdef CAMERA_RELATIVE_RENDERING
-    return TransformWorldToHClip(TransformObjectToWorld(positionOS));
-#else
-    // More efficient than computing M*VP matrix product
-    return mul(GetWorldToHClipMatrix(), mul(GetObjectToWorldMatrix(), float4(positionOS, 1.0)));
-#endif
+    if (_CameraRelativeEnabled)
+        return TransformWorldToHClip(TransformObjectToWorld(positionOS));
+    else // More efficient than computing M*VP matrix product
+        return mul(GetWorldToHClipMatrix(), mul(GetObjectToWorldMatrix(), float4(positionOS, 1.0)));
 }
 
 // Normalize to support uniform scaling

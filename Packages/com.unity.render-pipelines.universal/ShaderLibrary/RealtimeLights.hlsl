@@ -159,13 +159,8 @@ Light GetAdditionalPerObjectLight(int perObjectLightIndex, float3 positionWS)
     uint lightLayerMask = asuint(_AdditionalLightsLayerMasks[perObjectLightIndex]);
 #endif
 
-#ifdef CAMERA_RELATIVE_RENDERING
-    // lightPositionWS.w>0 ensures we only offset punctual lights (Point/Spot), not Directional
-    if(lightPositionWS.w>0.0)
-    {
-        lightPositionWS.xyz-=_CameraOriginWS;
-    }
-#endif
+    if (_CameraRelativeEnabled) // lightPositionWS.w>0 ensures we only offset punctual lights (Point/Spot), not Directional
+        if(lightPositionWS.w>0.0) lightPositionWS.xyz-=_CameraOriginWS;
 
     // Directional lights store direction in lightPosition.xyz and have .w set to 0.0.
     // This way the following code will work for both directional and punctual lights.
